@@ -60,23 +60,27 @@ void binary_array::print(char x) const
   cout<<"\n";
 }
 
-friend binary_array binary_array::xnor_mask(binary_array &mask, int rh_index) const
+friend binary_array binary_array::xnor_mask(binary_array &mask, int midpoint_index) const
 {
-  if(size < rh_index + mask.size)
-    throw out_of_range("Bal");
+  if(size < tl_index + (mask.row_size * mask_col_count))
+    throw out_of_range("The mask does not fit over the matrix");
 
-  int rh_byte = rh_index / 8;
-  int rh_bit = rh_index % 8;
+  //Calculate frequently used data
+  int lh_offset = midpoint_index % row_size;
   int pop_count = 0;
-  binary_array result(mask.size);
+  binary_array result(mask.size, mask.row_count);
 
-  cout<<mask.number_of_bytes<<" "<<mask.size<<"\n";
+  //Iterate ovet the rows
   char operation_byte = 0;
-  for(int byte = 0; byte < mask.number_of_bytes; byte++)
+  for(int row = 1; row < mask.row_count+1; row++)
   {
-    operation_byte = (array[byte+rh_byte]>>rh_bit) | (array[byte+rh_byte+1]<<8-rh_bit);
-    operation_byte = ~(operation_byte^mask.array[byte]);
-    result[byte] = operation_byte;
+    int left_byte = ceil((row*row_size+lh_offset)/8.0);
+    for(int byte = 0; byte < ceil(mask.row_size/8.0); byte++)
+    {
+      operation_byte = (array[byte+left_byte]>>rh_bit) | (array[byte+left_byte+1]<<8-rh_bit);
+      operation_byte = ~(operation_byte^mask.array[byte]);
+      result[byte] = operation_byte;
+    }
   }
 
   return result;

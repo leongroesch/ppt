@@ -11,9 +11,10 @@ class binary_array
 private:
   std::vector<char> array;
   int size;
-  int number_of_bytes;
+  int byte_count;
   unsigned int row_count;
   unsigned int row_size;
+  unsigned int col_count;
   unsigned int col_size;
 
 public:
