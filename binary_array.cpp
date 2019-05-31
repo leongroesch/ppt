@@ -66,25 +66,38 @@ friend binary_array binary_array::xnor_mask(binary_array &mask, int midpoint_ind
     throw out_of_range("The mask does not fit over the matrix");
 
   //Calculate frequently used data
-  int lh_offset = midpoint_index % row_size;
-  int pop_count = 0;
-  binary_array result(mask.size, mask.row_count);
-
-  //Iterate ovet the rows
-  char operation_byte = 0;
-  for(int row = 1; row < mask.row_count+1; row++)
+  int kernel_offset = 0;
+  //Iterate ofter the maks columns
+  char arry_operand = 0;
+  char kernel_operand = 0;
+  for(int row = -(maks.row_count/2); row < mask.row_count/2  ; i++)
   {
-    int left_byte = ceil((row*row_size+lh_offset)/8.0);
-    for(int byte = 0; byte < ceil(mask.row_size/8.0); byte++)
+    int lh_matrix_idx = midpoint_index+(row*row_size) - mask.row_size/2;
+    //<<<To Do>>>
+    int lh_kernel_idx = row
+    //Iterate over the bytes in one collumn
+    for(int byte = 0; byte < to_byte(mask.row_size)-1; byte++)
     {
-      operation_byte = (array[byte+left_byte]>>rh_bit) | (array[byte+left_byte+1]<<8-rh_bit);
-      operation_byte = ~(operation_byte^mask.array[byte]);
-      result[byte] = operation_byte;
+      if((lh_matrix_idx%8) != 0)
+        array_operand = array[lh_matrix_idx/8+byte]<<(lh_matrix_idx%8) | array[lh_matrix_idx/8+byte+1] >> 8-(lh_matrix_idx%8);
+      else
+        array_operand = array[lh_matrix_idx/8+byte];
+      kernel_operand = mask.array[byte]
+
+
     }
+    if(mask.row_size%8 == 0)
+      array_operand = array[lh_matrix_idx/8+to_byte(mask.row_size)];
+    else
+      array_operand = (array[lh_matrix_idx/8 + mask.row_size/8]<<8-mask.row_size%8  | array[lh_matrix_idx/8+to_byte(mask.row_size)]);
   }
 
   return result;
 }
+
+
+
+
 
 
 

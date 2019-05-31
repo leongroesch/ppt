@@ -17,6 +17,8 @@ private:
   unsigned int col_count;
   unsigned int col_size;
 
+  inline unsigned int to_byte(int bit){ return ceil(bit/8.0);}
+
 public:
   binary_array(int _size, unsigned int _row_count);
   binary_array(unsigned char* _array, unsigned int _size, unsigned int _row_count);
