@@ -24,12 +24,14 @@ public:
 
   // int get_size() const {return size;};
   // unsigned get_row_count() const {return row_count;};
-  int popc() const;
+  unsigned char popc() const;
   void print() const;
-  void print(char x) const;
+  static void print(char x);
+  static void print(char x, const char* message);
   void push_back(char value) {array.push_back(value);} ;
   binary_array xnor_mask(binary_array &mask, int midpoint_index);
-  unsigned char byte(int lh_idx, int rh_idx);
+  unsigned char get_byte(int lh_idx, int rh_idx);
+  void set_byte(int lh_idxm, int rh_idx, unsigned char value);
   unsigned char& operator[](int index){return array[index];}
 };
 

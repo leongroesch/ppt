@@ -28,7 +28,7 @@ binary_array::binary_array(vector<int> _array, int _size, unsigned int _row_coun
   }
 }
 
-int binary_array::popc() const
+unsigned char binary_array::popc() const
 {
   int count = 0;
   int byte = 0;
@@ -57,11 +57,18 @@ void binary_array::print() const
   cout<<"\n\n";
 }
 
-void binary_array::print(char x) const
+void binary_array::print(char x)
 {
   for(int i = 7; i >= 0; i--)
     cout<<(x>>i&0x01)<<" ";
   cout<<"\n";
+}
+
+void binary_array::print(char x, const char* message)
+{
+  for(int i = 7; i >= 0; i--)
+    cout<<(x>>i&0x01)<<" ";
+  cout<<" "<<message<<"\n";
 }
 
 binary_array binary_array::xnor_mask(binary_array &mask, int midpoint_index)
@@ -71,49 +78,32 @@ binary_array binary_array::xnor_mask(binary_array &mask, int midpoint_index)
 
   //Calculate frequently used data
   binary_array result(mask.size, mask.row_count);
+  unsigned char kernel_byte = 0;
+  unsigned char matrix_byte = 0;
   //Iterate ofter the maks columns
-  unsigned char array_operand = 0;
-  unsigned char kernel_operand = 0;
   for(int row = -(mask.row_count/2); row <= (int)mask.row_count/2  ; row++)
   {
     int lh_matrix_idx = midpoint_index+(row*row_size) - mask.row_size/2;
     int lh_kernel_idx = (row+mask.row_count/2)*mask.row_size;
     //Iterate over the bytes in one collumn
-    for(unsigned int byte = 0; byte < to_byte(mask.row_size)-1; byte++)
+    for(unsigned int byte = 0; byte < mask.row_size/8; byte++)
     {
-      if((lh_matrix_idx%8) != 0)
-        array_operand = array[lh_matrix_idx/8+byte]<<(lh_matrix_idx%8) | array[lh_matrix_idx/8+byte+1] >> (8-lh_matrix_idx%8);
-      else
-        array_operand = array[lh_matrix_idx/8+byte];
-      kernel_operand = mask.array[to_byte(lh_kernel_idx)+byte];
-      cout<<"kernel_operand in for: ";
-      print(kernel_operand);
-      cout<<"array operand in for: ";
-      print(array_operand);
-      result[to_byte(lh_kernel_idx)+byte] = ~(array_operand^kernel_operand);
+      kernel_byte = mask.get_byte(lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+8);
+      matrix_byte = get_byte(lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+8);
+      result.set_byte(lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+8, ~(kernel_byte^ matrix_byte));
     }
-    if(mask.row_size%8 == 0)
-      array_operand = array[lh_matrix_idx/8+to_byte(mask.row_size)];
-    else if(mask.row_size > 8)
-      array_operand = (array[lh_matrix_idx/8 + mask.row_size/8]<<(8-mask.row_size%8)  | array[lh_matrix_idx/8+to_byte(mask.row_size)]);
-    else
-    {
-      array_operand = array[lh_matrix_idx/8 + mask.row_size/8];
-      array_operand = array_operand<<(lh_matrix_idx%8);
-      array_operand = array_operand>>(8-(mask.row_size%8));
-    }
-    kernel_operand = (mask.array[lh_kernel_idx/8+mask.row_size/8]<<lh_kernel_idx%8)>>(8-(mask.row_size%8));
-    cout<<"kernel_operand : ";
-    print(kernel_operand);
-    cout<<"array operand : ";
-    print(array_operand);
-    result[to_byte(lh_kernel_idx)+to_byte(mask.row_size)] = ~(array_operand^kernel_operand);
+    unsigned int byte = mask.row_size/8;
+    unsigned int offset = (mask.row_size%8)-1;
+    kernel_byte = mask.get_byte(lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset);
+    matrix_byte = get_byte(lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+offset);
+    print(~(kernel_byte^ matrix_byte));
+    result.set_byte(lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset, ~(kernel_byte^ matrix_byte));
   }
 
   return result;
 }
 
-unsigned char binary_array::byte(int lh_idx, int rh_idx)
+unsigned char binary_array::get_byte(int lh_idx, int rh_idx)
 {
   if(lh_idx > rh_idx || rh_idx-lh_idx > 7|| rh_idx >= size)
     throw out_of_range("Invalid argumnts");
@@ -127,12 +117,38 @@ unsigned char binary_array::byte(int lh_idx, int rh_idx)
   else
   {
     lh_byte = lh_byte<<lh_idx%8;
-    lh_byte &= 0xFF<<(rh_idx-lh_idx+1);
+    lh_byte &= 0xFF<<(7-(rh_idx-lh_idx));
     rh_byte = (rh_byte>>(7-rh_idx%8))<<((lh_idx%8)-(rh_idx%8+1));
   }
   return lh_byte | rh_byte;
 }
 
+void binary_array::set_byte(int lh_idx, int rh_idx, unsigned char value)
+{
+  if(lh_idx > rh_idx || rh_idx-lh_idx > 7|| rh_idx >= size)
+    throw out_of_range("Invalid argumnts");
+  unsigned char lh_byte = array[lh_idx/8];
+  unsigned char rh_byte = array[rh_idx/8];
+
+  if(rh_idx-lh_idx < 7)
+    value &= 0xFF<<(7-(rh_idx-lh_idx));
+
+  if(lh_idx/8 == rh_idx/8)
+  {
+    lh_byte &= (0xFF<<(8-lh_idx%8)) | (0xFF>>(rh_idx%8+1));
+    lh_byte |= value>>(lh_idx%8);
+  }
+  else
+  {
+    lh_byte &= 0xFF<<(8-lh_idx%8);
+    lh_byte |= value>>(lh_idx%8);
+    rh_byte &= 0xFF>>(rh_idx%8+1);
+    rh_byte |= value<<(8-lh_idx%8);
+    array[rh_idx/8] = rh_byte;
+  }
+
+  array[lh_idx/8] = lh_byte;
+}
 
 
 
