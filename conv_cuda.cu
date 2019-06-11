@@ -1,7 +1,6 @@
 #include <cuda.h>
 #include <math.h>
 #include <iostream>
-#include "binary_array.h"
 
 using namespace std;
 
@@ -80,46 +79,67 @@ void convBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* mat, un
 	}
 }
 
+__device__
+void get_byte(uint32_t* d_MATDIM, unsigned char* matrix, unsigned char* result, uint32_t lh_idx, uint32_t rh_idx)
+{
+  unsigned char lh_byte = matrix[lh_idx/8];
+  unsigned char rh_byte = matrix[rh_idx/8];
+  if(rh_idx-lh_idx == 7)
+  {
+    lh_byte = lh_byte<<lh_idx%8;
+    rh_byte = rh_byte>>(8-lh_idx%8);
+  }
+  else
+  {
+    lh_byte = lh_byte<<lh_idx%8;
+    lh_byte &= 0xFF<<(7-(rh_idx-lh_idx));
+    rh_byte = (rh_byte>>(7-rh_idx%8))<<((lh_idx%8)-(rh_idx%8+1));
+  }
+  *result = lh_byte | rh_byte;
+}
+
+__device__
+unsigned char popc(unsigned char value)
+{
+  unsigned char result = 0;
+  for(int i=0; i < 8; i++)
+  {
+    if(value>>i&0x01 == 1)
+      result++;
+  }
+  return result;
+}
+
+//Leong: First approach of a byte wise binary/binary convolution
 __global__
-void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* mat, unsigned char* ker, unsigned char* res){
-	const uint32_t ELEMENT_SIZE = 8;
-	uint32_t MATDIM = d_MATDIM[0];
+void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matrix, unsigned char* kernel, unsigned char* result){
 	uint32_t KERDIM = d_KERDIM[0];
-	uint32_t xnor_number = 0;
-	unsigned char bit_counter = 0;
-	unsigned char pop_count = 0;
-
+	uint32_t MATDIM = d_MATDIM[0];
 	uint32_t threadID = blockIdx.x * blockDim.x + threadIdx.x;
-	if (threadID < (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)) {
-		uint32_t midpoint_matrix = KERDIM/2 + (KERDIM/2) * MATDIM + (threadID / (MATDIM-KERDIM+1)) * MATDIM + threadID % (MATDIM-KERDIM+1);
-
-	uint32_t current_matrix_byte = midpoint_matrix - ( (KERDIM/2) + (KERDIM/2)*MATDIM);
-  uint32_t accumulated_matrix_size = ceil(KERDIM*KERDIM*1.0f/ELEMENT_SIZE)
-	unsigned char accumulated_matrix[accumulated_matrix_size];
-	uint32_t residual = ELEMENT_SIZE;
-	for(int i = 0; i <  accumulated_matrix_size;)
+	result[threadID] = 0;
+	uint32_t midpoint_index = KERDIM/2 + (KERDIM/2) * MATDIM + (threadID / (MATDIM-KERDIM+1)) * MATDIM + threadID % (MATDIM-KERDIM+1);
+	uint32_t tmp_result = 0;
+	unsigned char kernel_byte = 0;
+	unsigned char matrix_byte = 0;
+	//Iterate ofter the maks columns
+	for(int row = -(KERDIM/2); row <= (int)KERDIM/2  ; row++)
 	{
-		if(residual == 0){
-			i++;
-			residual = ELEMENT_SIZE;
-		}
-		accumulated_matrix[i] |= (mat[current_matrix_byte] & 0xFF << residual)
-
-	}
-
-	for(int i = 0; i < KERDIM*KERDIM; i+=8)
-	{
-		uint32_t matrix_operand = 0;
-		for(int j = 0; j < ELEMENT_SIZE; j += KERDIM)
+		int lh_matrix_idx = midpoint_index+(row*MATDIM) - KERDIM/2;
+		int lh_kernel_idx = (row+KERDIM/2)*KERDIM;
+		//Iterate over the bytes in one collumn
+		for(unsigned int byte = 0; byte < KERDIM/8; byte++)
 		{
-			matrix_operand |=
-
-			curr_mat_idx += MATDIM
+		  get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+8);
+			get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+8);
+			result[threadID] += popc(~(kernel_byte^matrix_byte));
 		}
-		uint32_t kernel_operand = ker[i/8];
-		pop_count += __popc(~(matrix_operand^kernel_operand));
+		unsigned int byte = KERDIM/8;
+		unsigned int offset = (KERDIM%8)-1;
+		get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset);
+		get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+offset);
+		result[threadID] += popc(0XFF<<7-offset & ~(kernel_byte^matrix_byte));
 	}
- }
+
 }
 
 void initMat(uint32_t dim, double* mat) {
@@ -230,6 +250,8 @@ int main(int argc, char* argv[]) {
 	// Result of convolution with binary weights and binary inputs
 	unsigned char 	h_res_binWbinI[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 
+	unsigned char 	new_h_res_binWbinI[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
+
 	uint32_t mat_size = 			MATDIM*MATDIM * sizeof(double);
 	uint32_t ker_size = 			KERDIM*KERDIM * sizeof(double);
 	uint32_t mat_bin_size = 		(uint32_t) ceil(MATDIM*MATDIM/8.0) * sizeof(unsigned char);
@@ -241,7 +263,7 @@ int main(int argc, char* argv[]) {
 	// Pointers for allocation on device
 	uint32_t *d_MATDIM, *d_KERDIM;
 	double *d_mat, *d_ker, *d_res_standard, *d_res_binW;
-	unsigned char *d_mat_bin, *d_ker_bin, *d_res_binWbinI;
+	unsigned char *d_mat_bin, *d_ker_bin, *d_res_binWbinI, *new_d_res_binWbinI;
 
 	// Allocate all matrices on device (cudaFree later!)
 	cudaMalloc((void**) &d_mat, mat_size);
@@ -251,6 +273,8 @@ int main(int argc, char* argv[]) {
 	cudaMalloc((void**) &d_res_standard, res_standard_size);
 	cudaMalloc((void**) &d_res_binW, res_binW_size);
 	cudaMalloc((void**) &d_res_binWbinI, res_binWbinI_size);
+
+	cudaMalloc((void**) &new_d_res_binWbinI, res_binWbinI_size);
 
 	cudaMalloc((void**) &d_MATDIM, sizeof(uint32_t));
 	cudaMalloc((void**) &d_KERDIM, sizeof(uint32_t));
@@ -262,21 +286,17 @@ int main(int argc, char* argv[]) {
 	initMat(MATDIM, h_mat);
     // Convert the double matrix into binary (0 = -1, 1 = 1)
 	convertToBinary(MATDIM, h_mat, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
-	binary_array result(h_mat_bin, MATDIM*MATDIM, MATDIM);
-	cout<<"############BitArray#########\n";
-	result.print();
-	cout<<"############h_mat_bin#######\n";
 	// TODO DEBUG: Print the binary matrix.
 	printBinary(MATDIM, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
 
     // TODO DEBUG: Print the double matrix.
-   printMatrix(MATDIM, h_mat);
+   // printMatrix(MATDIM, h_mat);
 
 	initMat(KERDIM, h_ker);
 	// Convert the double matrix into binary
 	convertToBinary(KERDIM, h_ker, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
 	// TODO DEBUG: Print the double matrix.
-	printMatrix(KERDIM, h_ker);
+	// printMatrix(KERDIM, h_ker);
 	// TODO DEBUG: Print the binary matrix.
 	printBinary(KERDIM, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
 
@@ -291,18 +311,18 @@ int main(int argc, char* argv[]) {
 
 	uint32_t grid_size = ceil((MATDIM-KERDIM+1) * (MATDIM-KERDIM+1) / ((double) N));
 
-	// Compute the different modes of convolution
-	clock_gettime(CLOCK_MONOTONIC, &tstart);
-	convStandard<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker, d_res_standard);
-	clock_gettime(CLOCK_MONOTONIC, &tend);
-	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
-	cout << "Standard convolution took " << elapsed << " seconds.\n";
-
-	clock_gettime(CLOCK_MONOTONIC, &tstart);
-	convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
-	clock_gettime(CLOCK_MONOTONIC, &tend);
-	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
-	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
+	// // Compute the different modes of convolution
+	// clock_gettime(CLOCK_MONOTONIC, &tstart);
+	// convStandard<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker, d_res_standard);
+	// clock_gettime(CLOCK_MONOTONIC, &tend);
+	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	// cout << "Standard convolution took " << elapsed << " seconds.\n";
+	//
+	// clock_gettime(CLOCK_MONOTONIC, &tstart);
+	// convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+	// clock_gettime(CLOCK_MONOTONIC, &tend);
+	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	// cout << "Binary weights took " << elapsed << " nanoseconds.\n";
 
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
 	convBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, d_res_binWbinI);
@@ -311,22 +331,40 @@ int main(int argc, char* argv[]) {
 	cout << "Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";
 	cout << elapsed << "\n";
 
+	//Leon
+	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	newConvBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, new_d_res_binWbinI);
+	clock_gettime(CLOCK_MONOTONIC, &tend);
+	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	cout << "Byte wise Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";
+	cout << elapsed << "\n";
+
 	// Fetch the results from device
-	cudaMemcpy(h_res_standard, d_res_standard, res_standard_size, cudaMemcpyDeviceToHost);
-	cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
+	// cudaMemcpy(h_res_standard, d_res_standard, res_standard_size, cudaMemcpyDeviceToHost);
+	// cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_res_binWbinI, d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(new_h_res_binWbinI, new_d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 
 	// TODO DEBUG: Print the results
-	cout << "Standard convolution DOUBLExDOUBLE\n";
-	printMatrix(MATDIM-KERDIM+1, h_res_standard);
-	cout << "Binary weight convolution DOUBLExBITS\n";
-	printMatrix(MATDIM-KERDIM+1, h_res_binW);
+	// cout << "Standard convolution DOUBLExDOUBLE\n";
+	// printMatrix(MATDIM-KERDIM+1, h_res_standard);
+	// cout << "Binary weight convolution DOUBLExBITS\n";
+	// printMatrix(MATDIM-KERDIM+1, h_res_binW);
 	cout << "Binary weights and binary inputs BITSxBITS\n";
-	printMatrix(MATDIM-KERDIM+1, (double*) h_res_binWbinI);
 	cout << "dim: " << MATDIM-KERDIM+1 << "x" << MATDIM-KERDIM+1 << "\n{\n";
 	for (uint32_t i = 0; i < MATDIM-KERDIM+1; i++) {
 		for (uint32_t j = 0; j < MATDIM-KERDIM+1; j++) {
 			cout << (uint32_t) h_res_binWbinI[i*(MATDIM-KERDIM+1)+j] << ", ";
+		}
+		cout << '\n';
+	}
+	cout << "}\n";
+
+	cout << "NEW Binary weights and binary inputs BITSxBITS\n";
+	cout << "dim: " << MATDIM-KERDIM+1 << "x" << MATDIM-KERDIM+1 << "\n{\n";
+	for (uint32_t i = 0; i < MATDIM-KERDIM+1; i++) {
+		for (uint32_t j = 0; j < MATDIM-KERDIM+1; j++) {
+			cout << (uint32_t) new_h_res_binWbinI[i*(MATDIM-KERDIM+1)+j] << ", ";
 		}
 		cout << '\n';
 	}
@@ -339,6 +377,7 @@ int main(int argc, char* argv[]) {
 	cudaFree(d_res_standard);
 	cudaFree(d_res_binW);
 	cudaFree(d_res_binWbinI);
+	cudaFree(new_d_res_binWbinI);
 	cudaFree(d_MATDIM);
 	cudaFree(d_KERDIM);
 
