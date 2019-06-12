@@ -106,32 +106,34 @@ void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matr
 	uint32_t threadID = blockIdx.x * blockDim.x + threadIdx.x;
 	result[threadID] = 0;
 	uint32_t midpoint_index = KERDIM/2 + (KERDIM/2) * MATDIM + (threadID / (MATDIM-KERDIM+1)) * MATDIM + threadID % (MATDIM-KERDIM+1);
-	uint32_t tmp_result = 0;
 	unsigned char kernel_byte = 0;
 	unsigned char matrix_byte = 0;
 	unsigned char result_byte = 0;
+	int lh_matrix_idx = 0;
+	int lh_kernel_idx = 0;
+	unsigned int offset = 0;
+
 	//Iterate ofter the maks columns
 	for(int row = -(KERDIM/2); row <= (int)KERDIM/2  ; row++)
 	{
-		int lh_matrix_idx = midpoint_index+(row*MATDIM) - KERDIM/2;
-		int lh_kernel_idx = (row+KERDIM/2)*KERDIM;
+		lh_matrix_idx = midpoint_index+(row*MATDIM) - KERDIM/2;
+		lh_kernel_idx = (row+KERDIM/2)*KERDIM;
 		//Iterate over the bytes in one collumn
-		for(unsigned int byte = 0; byte < KERDIM/8; byte++)
+		for(unsigned int byte = 0; byte <= KERDIM/8; byte++)
 		{
-		  get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+8);
-			get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+8);
+			if(byte == KERDIM/8)
+			 offset =	(KERDIM%8)-1;
+			else
+				offset = 7;
+		  get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset);
+			get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+offset);
+			//XNOR
 			result_byte = ~(kernel_byte^matrix_byte);
+			//Only use the x left most bits from the last byte
+			if(byte == KERDIM/8)
+				result_byte = ((0XFF<<(7-offset)) & result_byte);
 			result[threadID] += __popc(result_byte);
 		}
-		unsigned int byte = KERDIM/8;
-		unsigned int offset = (KERDIM%8)-1;
-		get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset);
-		get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+offset);
-		//XNOR operation
-		result_byte = ~(kernel_byte^matrix_byte);
-		//Set the unused bits (rightmost) to 0
-		result_byte = ((0XFF<<(7-offset)) & result_byte);
-		result[threadID] += __popc(result_byte);
 	}
 
 }
