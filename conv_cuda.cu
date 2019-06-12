@@ -98,18 +98,6 @@ void get_byte(uint32_t* d_MATDIM, unsigned char* matrix, unsigned char* result, 
   *result = lh_byte | rh_byte;
 }
 
-__device__
-unsigned char popc(unsigned char value)
-{
-  unsigned char result = 0;
-  for(int i=0; i < 8; i++)
-  {
-    if(value>>i&0x01 == 1)
-      result++;
-  }
-  return result;
-}
-
 //Leong: First approach of a byte wise binary/binary convolution
 __global__
 void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matrix, unsigned char* kernel, unsigned char* result){
