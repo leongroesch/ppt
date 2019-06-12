@@ -121,6 +121,7 @@ void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matr
 	uint32_t tmp_result = 0;
 	unsigned char kernel_byte = 0;
 	unsigned char matrix_byte = 0;
+	unsigned char result_byte = 0;
 	//Iterate ofter the maks columns
 	for(int row = -(KERDIM/2); row <= (int)KERDIM/2  ; row++)
 	{
@@ -131,13 +132,18 @@ void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matr
 		{
 		  get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+8);
 			get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+8);
-			result[threadID] += popc(~(kernel_byte^matrix_byte));
+			result_byte = ~(kernel_byte^matrix_byte);
+			result[threadID] += __popc(result_byte);
 		}
 		unsigned int byte = KERDIM/8;
 		unsigned int offset = (KERDIM%8)-1;
 		get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset);
 		get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+offset);
-		result[threadID] += popc(0XFF<<7-offset & ~(kernel_byte^matrix_byte));
+		//XNOR operation
+		result_byte = ~(kernel_byte^matrix_byte);
+		//Set the unused bits (rightmost) to 0
+		result_byte = ((0XFF<<(7-offset)) & result_byte);
+		result[threadID] += __popc(result_byte);
 	}
 
 }
