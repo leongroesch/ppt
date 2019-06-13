@@ -212,7 +212,7 @@ void printBinary(uint32_t dim, uint32_t size_bin, unsigned char* mat) {
 }
 
 int main(int argc, char* argv[]) {
-	if (argc != 4) {
+	if (argc < 4) {
 		cout << "Usage: srun out <int: dimension of input matrix> <int: dimension of kernel> <blocksize>\n";
 		return 0;
 	}
@@ -230,23 +230,23 @@ int main(int argc, char* argv[]) {
 	double elapsed;
 
 	// Matrix (double)
-	double 	h_mat[MATDIM*MATDIM];
+	double* 	h_mat = new double[MATDIM*MATDIM];
 	// Kernel (double)
-	double 	h_ker[KERDIM*KERDIM];
+	double* 	h_ker = new double[KERDIM*KERDIM];
 
     // Matrix (bits)
-	unsigned char 	h_mat_bin[(uint32_t) ceil(MATDIM*MATDIM/8.0)];
+	unsigned char* 	h_mat_bin = new unsigned char[(uint32_t) ceil(MATDIM*MATDIM/8.0)];
     // Kernel (bits)
-	unsigned char 	h_ker_bin[(uint32_t) ceil(KERDIM*KERDIM/8.0)];
+	unsigned char* 	h_ker_bin = new unsigned char[(uint32_t) ceil(KERDIM*KERDIM/8.0)];
 
 	// Result of standard convolution
-	double 	h_res_standard[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
+	double* 	h_res_standard = new double[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 	// Result of convolution with binary weights
-	double 	h_res_binW[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
+	double* 	h_res_binW = new double[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 	// Result of convolution with binary weights and binary inputs
-	unsigned char 	h_res_binWbinI[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
+	unsigned char* 	h_res_binWbinI = new unsigned char[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 
-	unsigned char 	new_h_res_binWbinI[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
+	unsigned char* 	new_h_res_binWbinI = new unsigned char[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 
 	uint32_t mat_size = 			MATDIM*MATDIM * sizeof(double);
 	uint32_t ker_size = 			KERDIM*KERDIM * sizeof(double);
@@ -283,7 +283,8 @@ int main(int argc, char* argv[]) {
     // Convert the double matrix into binary (0 = -1, 1 = 1)
 	convertToBinary(MATDIM, h_mat, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
 	// TODO DEBUG: Print the binary matrix.
-	printBinary(MATDIM, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
+	if(argc == 4)
+		printBinary(MATDIM, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
 
     // TODO DEBUG: Print the double matrix.
    // printMatrix(MATDIM, h_mat);
@@ -294,7 +295,8 @@ int main(int argc, char* argv[]) {
 	// TODO DEBUG: Print the double matrix.
 	// printMatrix(KERDIM, h_ker);
 	// TODO DEBUG: Print the binary matrix.
-	printBinary(KERDIM, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
+	if(argc == 4)
+		printBinary(KERDIM, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
 
 	// Copy all the matrices to the device (except the result matrices)
 	cudaMemcpy(d_mat, h_mat, mat_size, cudaMemcpyHostToDevice);
@@ -346,25 +348,28 @@ int main(int argc, char* argv[]) {
 	// printMatrix(MATDIM-KERDIM+1, h_res_standard);
 	// cout << "Binary weight convolution DOUBLExBITS\n";
 	// printMatrix(MATDIM-KERDIM+1, h_res_binW);
-	cout << "Binary weights and binary inputs BITSxBITS\n";
-	cout << "dim: " << MATDIM-KERDIM+1 << "x" << MATDIM-KERDIM+1 << "\n{\n";
-	for (uint32_t i = 0; i < MATDIM-KERDIM+1; i++) {
-		for (uint32_t j = 0; j < MATDIM-KERDIM+1; j++) {
-			cout << (uint32_t) h_res_binWbinI[i*(MATDIM-KERDIM+1)+j] << ", ";
+	if(argc == 4)
+	{
+		cout << "Binary weights and binary inputs BITSxBITS\n";
+		cout << "dim: " << MATDIM-KERDIM+1 << "x" << MATDIM-KERDIM+1 << "\n{\n";
+		for (uint32_t i = 0; i < MATDIM-KERDIM+1; i++) {
+			for (uint32_t j = 0; j < MATDIM-KERDIM+1; j++) {
+				cout << (uint32_t) h_res_binWbinI[i*(MATDIM-KERDIM+1)+j] << ", ";
+			}
+			cout << '\n';
 		}
-		cout << '\n';
-	}
-	cout << "}\n";
+		cout << "}\n";
 
-	cout << "NEW Binary weights and binary inputs BITSxBITS\n";
-	cout << "dim: " << MATDIM-KERDIM+1 << "x" << MATDIM-KERDIM+1 << "\n{\n";
-	for (uint32_t i = 0; i < MATDIM-KERDIM+1; i++) {
-		for (uint32_t j = 0; j < MATDIM-KERDIM+1; j++) {
-			cout << (uint32_t) new_h_res_binWbinI[i*(MATDIM-KERDIM+1)+j] << ", ";
+		cout << "NEW Binary weights and binary inputs BITSxBITS\n";
+		cout << "dim: " << MATDIM-KERDIM+1 << "x" << MATDIM-KERDIM+1 << "\n{\n";
+		for (uint32_t i = 0; i < MATDIM-KERDIM+1; i++) {
+			for (uint32_t j = 0; j < MATDIM-KERDIM+1; j++) {
+				cout << (uint32_t) new_h_res_binWbinI[i*(MATDIM-KERDIM+1)+j] << ", ";
+			}
+			cout << '\n';
 		}
-		cout << '\n';
+		cout << "}\n";
 	}
-	cout << "}\n";
 
 	cudaFree(d_mat);
 	cudaFree(d_ker);
