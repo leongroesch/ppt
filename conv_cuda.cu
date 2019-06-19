@@ -46,6 +46,30 @@ void convBinW(uint32_t* d_MATDIM, uint32_t* d_KERDIM, double* mat, unsigned char
 }
 
 __global__
+void newConvBinW(uint32_t* d_MATDIM, uint32_t* d_KERDIM, double* mat, unsigned char* ker, double* res) {
+	uint32_t MATDIM = d_MATDIM[0];
+	uint32_t KERDIM = d_KERDIM[0];
+	uint32_t KERSIZE = KERDIM*KERDIM;
+	uint32_t threadID = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t RESDIM = MATDIM-KERDIM+1;
+	uint32_t POSMAT = (threadID % RESDIM) * (MATDIM - RESDIM);
+	if (threadID < (RESDIM)) {
+		double sum = 0.0;
+		for (uint32_t i = 0; i < KERSIZE; i++) {
+			uint32_t currentPosMat = POSMAT + ((int)(i / KERDIM) * MATDIM + i % KERDIM);
+			uint32_t kerPosByte = (int)(i / 7);
+			uint32_t kerPosBit = 7 - i % 7;
+			if((unsigned char)((ker[kerPosByte] >> kerPosBit) & 0x1) == 1) {
+				sum += mat[currentPosMat];
+			} else {
+				sum -= mat[currentPosMat];
+			}
+		}
+		res[threadID] = sum;
+	}
+}
+
+__global__
 void convBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* mat, unsigned char* ker, unsigned char* res) {
 	uint32_t MATDIM = d_MATDIM[0];
 	uint32_t KERDIM = d_KERDIM[0];
