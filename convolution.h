@@ -1,3 +1,6 @@
+#ifndef _CONVOLUTION_H_
+#define _CONVOLUTION_H_
+
 #include <cuda.h>
 #include <math.h>
 
@@ -95,7 +98,7 @@ void get_byte(uint32_t* d_MATDIM, unsigned char* matrix, unsigned char* result, 
   *result = lh_byte | rh_byte;
 }
 
-//Leong: First approach of a byte wise binary/binary convolution
+//Leong: Byte wise binary/binary convolution
 __global__
 void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matrix, unsigned char* kernel, unsigned char* result){
 	uint32_t KERDIM = d_KERDIM[0];
@@ -134,3 +137,5 @@ void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matr
 	}
 
 }
+
+#endif
