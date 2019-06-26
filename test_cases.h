@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <cstdlib>
+#include <ctime>
 #include "convolution.h"
 #include "array_management.h"
 
@@ -56,7 +57,7 @@ TEST(binIbinW_Test, OneElement)
 
   convBinWBinIWrapper(1, 1, MATDIM, KERDIM, matrix, kernel, result, false);
 
-  ASSERT_EQ(result[0], 1);
+  ASSERT_EQ(1, result[0]);
 }
 
 TEST(binIbinW_Test, 5Matrix3Kernel)
@@ -79,45 +80,42 @@ TEST(binIbinW_Test, 5Matrix3Kernel)
   unsigned char suspacted_result[9] = {4, 6, 2, 5, 5,  4, 6, 5, 5};
 
   for(int i = 0; i < 9; i++)
-      ASSERT_EQ(result[i], suspacted_result[i]);
+      ASSERT_EQ(suspacted_result[i], result[i]);
 }
 
 TEST(binIBinW_Test, OldAsOracle)
 {
-  uint32_t MATDIM = ceil( (rand()/RAND_MAX) * 1024);
-  uint32_t KERDIM = 1;
-  while(KERDIM%2)
-    KERDIM = ceil( (rand()/RAND_MAX) * MATDIM);
+  srand(time(0));
+  for(int j = 0; j < 10; j++)
+  {
+    uint32_t MATDIM = rand() % 7 + 1; //Oracle only works for small matrices
+    uint32_t KERDIM = (MATDIM == 1) ? 1 : 0;
+    while( (KERDIM%2) == 0)
+      KERDIM = rand() %  MATDIM + 1;
 
-  std::cerr << "[          ]" << MATDIM << " " << KERDIM << "\n";
+    std::cerr << "[          ] " << MATDIM << " " << KERDIM << "\n";
 
-  double* double_matrix = new double[ MATDIM * MATDIM * sizeof(double)];
-  double* double_kernel = new double[ KERDIM * KERDIM * sizeof(double)];
+    double* double_matrix = new double[ MATDIM * MATDIM * sizeof(double)];
+    double* double_kernel = new double[ KERDIM * KERDIM * sizeof(double)];
 
-  initMat(MATDIM, double_matrix);
-  initMat(KERDIM, double_kernel);
+    initMat(MATDIM, double_matrix);
+    initMat(KERDIM, double_kernel);
 
-  unsigned char* bin_matrix = new unsigned char[ (uint32_t)ceil(MATDIM*MATDIM/8.0) ];
-  unsigned char* bin_kernel = new unsigned char[ (uint32_t)ceil(KERDIM*KERDIM/8.0) ];
-  unsigned char* result = new unsigned char[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
-  unsigned char* suspected_result = new unsigned char[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
+    unsigned char* bin_matrix = new unsigned char[ (uint32_t)ceil(MATDIM*MATDIM/8.0) ];
+    unsigned char* bin_kernel = new unsigned char[ (uint32_t)ceil(KERDIM*KERDIM/8.0) ];
+    unsigned char* result = new unsigned char[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
+    unsigned char* suspected_result = new unsigned char[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
 
-  convertToBinary(MATDIM, double_matrix, (uint32_t)ceil(MATDIM*MATDIM/8.0), bin_matrix);
-  convertToBinary(KERDIM, double_kernel, (uint32_t)ceil(KERDIM*KERDIM/8.0), bin_kernel);
+    convertToBinary(MATDIM, double_matrix, (uint32_t)ceil(MATDIM*MATDIM/8.0), bin_matrix);
+    convertToBinary(KERDIM, double_kernel, (uint32_t)ceil(KERDIM*KERDIM/8.0), bin_kernel);
 
-  uint32_t N = 10;
-  uint32_t grid_size = ceil((MATDIM-KERDIM+1) * (MATDIM-KERDIM+1) / ((double) N));
+    uint32_t N = 10;
+    uint32_t grid_size = ceil((MATDIM-KERDIM+1) * (MATDIM-KERDIM+1) / ((double) N));
 
-  convBinWBinIWrapper(grid_size, N, MATDIM, KERDIM, bin_matrix, bin_kernel, suspected_result, true);
-  convBinWBinIWrapper(grid_size, N, MATDIM, KERDIM, bin_matrix, bin_kernel, result, false);
+    convBinWBinIWrapper(grid_size, N, MATDIM, KERDIM, bin_matrix, bin_kernel, suspected_result, true);
+    convBinWBinIWrapper(grid_size, N, MATDIM, KERDIM, bin_matrix, bin_kernel, result, false);
 
-  for(int i=0; i < (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1); i++)
-    ASSERT_EQ(result[i], suspected_result[i]);
-}
-
-
-int main(int argc, char **argv)
-{
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+    for(int i=0; i < (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1); i++)
+      ASSERT_EQ(suspected_result[i], result[i]);
+  }
 }

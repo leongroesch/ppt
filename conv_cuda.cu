@@ -2,11 +2,18 @@
 
 #include "convolution.h"
 #include "array_management.h"
+#include "test_cases.h"
 
 using namespace std;
 
 int main(int argc, char* argv[]) {
-	if (argc < 4) {
+
+	if(argc == 1)
+	{
+		testing::InitGoogleTest(&argc, argv);
+	  return RUN_ALL_TESTS();
+	}
+	else if (argc < 4) {
 		cout << "Usage: srun out <int: dimension of input matrix> <int: dimension of kernel> <blocksize>\n";
 		return 0;
 	}
