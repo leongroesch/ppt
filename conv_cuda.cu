@@ -54,18 +54,12 @@ void newConvBinW(uint32_t* d_MATDIM, uint32_t* d_KERDIM, double* mat, unsigned c
 	uint32_t threadID = blockIdx.x * blockDim.x + threadIdx.x;
 	uint32_t RESDIM = MATDIM-KERDIM+1;
 	uint32_t POSMAT = threadID + (threadID % RESDIM) * (MATDIM - RESDIM);
-	if(threadID == 0) {
-		printf("PosMAT: %i\n", POSMAT);
-	}
 	if (threadID < (RESDIM * RESDIM)) {
 		double sum = 0.0;
 		for (uint32_t i = 0; i < KERSIZE; i++) {
 			uint32_t currentPosMat = POSMAT + ((int)(i / KERDIM) * MATDIM + i % KERDIM);
 			uint32_t kerPosByte = (int)(i / 7);
 			uint32_t kerPosBit = 7 - i % 7;
-			if(threadID == 0) {
-				printf("MatPos: %i\n", currentPosMat);
-			}
 			if((unsigned char)((ker[kerPosByte] >> kerPosBit) & 0x1) == 1) {
 				sum += mat[currentPosMat];
 			} else {
@@ -242,15 +236,176 @@ void printBinary(uint32_t dim, uint32_t size_bin, unsigned char* mat) {
 	}
 }
 
+bool cmpf(double A, double B, double epsilon = 0.00005f)
+{
+    return (fabs(A - B) < epsilon);
+}
+
+void testBinW(uint32_t dimM, uint32_t dimK, uint32_t N, int testNo, double* mat, double* res, unsigned char* ker) {
+    uint32_t DIMMAT = dimM, DIMKER = dimK, DIMRES = dimM - dimK + 1, MATSIZE = DIMMAT * DIMMAT, KERSIZE = DIMKER * DIMKER, RESSIZE = DIMRES * DIMRES;
+    uint32_t h_MATDIM[1];
+    h_MATDIM[0] = DIMMAT;
+    uint32_t h_KERDIM[1];
+    h_KERDIM[0] = DIMKER;
+    double resToTest[RESSIZE];
+
+		uint32_t mat_size = MATSIZE * sizeof(double);
+		uint32_t ker_size = (uint32_t) ceil(KERSIZE/8.0) * sizeof(unsigned char);
+		uint32_t res_size = RESSIZE * sizeof(double);
+
+		uint32_t *d_MATDIM, *d_KERDIM;
+    double *d_mat, *d_res_binW;
+    unsigned char *d_ker_bin;
+
+		cudaMalloc((void**) &d_mat, mat_size);
+		cudaMalloc((void**) &d_ker_bin, ker_size);
+		cudaMalloc((void**) &d_res_binW, res_size);
+		cudaMalloc((void**) &d_MATDIM, sizeof(uint32_t));
+    cudaMalloc((void**) &d_KERDIM, sizeof(uint32_t));
+
+    cudaMemcpy(d_mat, mat, mat_size, cudaMemcpyHostToDevice);
+		cudaMemcpy(d_ker_bin, ker, ker_size, cudaMemcpyHostToDevice);
+
+		cudaMemcpy(d_MATDIM, h_MATDIM, sizeof(uint32_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_KERDIM, h_KERDIM, sizeof(uint32_t), cudaMemcpyHostToDevice);
+
+		uint32_t grid_size = ceil(RESSIZE / ((double) N));
+
+		newConvBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+
+    cudaMemcpy(resToTest, d_res_binW, res_size, cudaMemcpyDeviceToHost);
+    for (int i = 0; i < RESSIZE; i++) {
+        if(! cmpf(res[i], resToTest[i])) {
+            cout << "\033[1;31mTest №: " << testNo << " failed!\n\033[0m";
+						cout << res[i] << " " << resToTest[i] << "\n";
+						/*cudaFree(d_ker_bin);
+						cudaFree(d_mat);
+						cudaFree(d_res_binW);
+						cudaFree(d_MATDIM);
+						cudaFree(d_KERDIM);
+						return;*/
+        }
+    }
+
+    cout << "\033[1;32mTest №: " << testNo << " successed!\n\033[0m";
+    cudaFree(d_ker_bin);
+		cudaFree(d_mat);
+		cudaFree(d_res_binW);
+    cudaFree(d_MATDIM);
+    cudaFree(d_KERDIM);
+
+}
+
+void runTests(uint32_t N) {
+	double mat0[16], res0[9];
+	unsigned char ker0[(uint32_t) ceil(4/8.0)];
+
+	mat0[0] = 0.178184;
+	mat0[1] = -0.368889;
+	mat0[2] = -0.0857587;
+	mat0[3] = -0.256823;
+	mat0[4] = -0.974276;
+	mat0[5] = -0.575986;
+	mat0[6] = -0.416872;
+	mat0[7] = 0.450409;
+	mat0[8] = -0.984626;
+	mat0[9] = -0.933976;
+	mat0[10] = -0.726241;
+	mat0[11] = -0.354601;
+	mat0[12] = 0.644028;
+	mat0[13] = -0.586327;
+	mat0[14] = 0.37183;
+	mat0[15] = 0.765458;
+	ker0[0] = 0b11100000;
+	res0[0] = -0.588995;
+	res0[1] = -1.209863;
+	res0[2] = -1.600912;
+	res0[3] = 0.203936;
+	res0[4] = -1.200593;
+	res0[5] = -1.532846;
+	res0[6] = -0.338103;
+	res0[7] = -0.688247;
+	res0[8] = -1.474470;
+
+	testBinW(4, 2, N, 0, mat0, res0, ker0);
+
+	double mat1[16], res1[16];
+	unsigned char ker1[(uint32_t) ceil(4/8.0)];
+
+	mat1[0] = -0.510971;
+	mat1[1] = -0.247672;
+	mat1[2] = -0.859489;
+	mat1[3] = -0.390785;
+	mat1[4] = -0.75706;
+	mat1[5] = -0.718692;
+	mat1[6] = 0.292791;
+	mat1[7] = 0.0486137;
+	mat1[8] = -0.855771;
+	mat1[9] = 0.384334;
+	mat1[10] = 0.623243;
+	mat1[11] = 0.445734;
+	mat1[12] = -0.741026;
+	mat1[13] = -0.262363;
+	mat1[14] = 0.357182;
+	mat1[15] = 0.869584;
+	ker1[0] = 0b00000000;
+
+	for (int i = 0; i < 16; i++) {
+		res1[i] = -mat1[i];
+	}
+
+	testBinW(4, 1, N, 1, mat1, res1, ker1);
+
+	ker1[0] = 0b10000000;
+
+	for (int i = 0; i < 16; i++) {
+		res1[i] = mat1[i];
+	}
+
+	testBinW(4, 1, N, 2, mat1, res1, ker1);
+
+	double mat2[16], res2[4];
+	unsigned char ker2[(uint32_t) ceil(9/8.0)];
+
+	mat2[0] = 0.0803077;
+	mat2[1] = 0.0543088;
+	mat2[2] = -0.874869;
+	mat2[3] = -0.654904;
+	mat2[4] = -0.954831;
+	mat2[5] = -0.186203;
+	mat2[6] = -0.744362;
+	mat2[7] = 0.749519;
+	mat2[8] = -0.921765;
+	mat2[9] = 0.78594;
+	mat2[10] = -0.946144;
+	mat2[11] = -0.519783;
+	mat2[12] = -0.275407;
+	mat2[13] = 0.301698;
+	mat2[14] = -0.0470979;
+	mat2[15] = -0.799294;
+	ker2[0] = 0b00100100;
+	ker2[1] = 0b00000000;
+	res2[0] = 0.469155;
+	res2[1] = 2.87521;
+	res2[2] = 1.38936;
+	res2[3] = 1.8652;
+
+	testBinW(4, 3, N, 3, mat2, res2, ker2);
+}
+
 int main(int argc, char* argv[]) {
 	if (argc < 4) {
 		cout << "Usage: srun out <int: dimension of input matrix> <int: dimension of kernel> <blocksize>\n";
+		cout << "(Optional) 1, if you want to run the Test";
 		return 0;
 	}
 
 	uint32_t MATDIM = strtol(argv[1], NULL, 10);
 	uint32_t KERDIM = strtol(argv[2], NULL, 10);
 	uint32_t N = strtol(argv[3], NULL, 10);
+	if (argv[4] != NULL && strtol(argv[4], NULL, 10) == 1) {
+		runTests(N);
+	}
 
 	uint32_t h_MATDIM[1];
 	h_MATDIM[0] = MATDIM;
@@ -348,7 +503,7 @@ int main(int argc, char* argv[]) {
 	cout << "Standard convolution took " << elapsed << " seconds.\n";
 
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
-	convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+	newConvBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
 	clock_gettime(CLOCK_MONOTONIC, &tend);
 	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
