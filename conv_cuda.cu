@@ -1,6 +1,7 @@
 #include <cuda.h>
 #include <math.h>
 #include <iostream>
+#include <stdio.h>
 
 using namespace std;
 
@@ -52,13 +53,19 @@ void newConvBinW(uint32_t* d_MATDIM, uint32_t* d_KERDIM, double* mat, unsigned c
 	uint32_t KERSIZE = KERDIM*KERDIM;
 	uint32_t threadID = blockIdx.x * blockDim.x + threadIdx.x;
 	uint32_t RESDIM = MATDIM-KERDIM+1;
-	uint32_t POSMAT = (threadID % RESDIM) * (MATDIM - RESDIM);
-	if (threadID < (RESDIM)) {
+	uint32_t POSMAT = threadID + (threadID % RESDIM) * (MATDIM - RESDIM);
+	if(threadID == 0) {
+		printf("PosMAT: %i\n", POSMAT);
+	}
+	if (threadID < (RESDIM * RESDIM)) {
 		double sum = 0.0;
 		for (uint32_t i = 0; i < KERSIZE; i++) {
 			uint32_t currentPosMat = POSMAT + ((int)(i / KERDIM) * MATDIM + i % KERDIM);
 			uint32_t kerPosByte = (int)(i / 7);
 			uint32_t kerPosBit = 7 - i % 7;
+			if(threadID == 0) {
+				printf("MatPos: %i\n", currentPosMat);
+			}
 			if((unsigned char)((ker[kerPosByte] >> kerPosBit) & 0x1) == 1) {
 				sum += mat[currentPosMat];
 			} else {
@@ -311,13 +318,13 @@ int main(int argc, char* argv[]) {
 		printBinary(MATDIM, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
 
     // TODO DEBUG: Print the double matrix.
-   // printMatrix(MATDIM, h_mat);
+  printMatrix(MATDIM, h_mat);
 
 	initMat(KERDIM, h_ker);
 	// Convert the double matrix into binary
 	convertToBinary(KERDIM, h_ker, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
 	// TODO DEBUG: Print the double matrix.
-	// printMatrix(KERDIM, h_ker);
+	printMatrix(KERDIM, h_ker);
 	// TODO DEBUG: Print the binary matrix.
 	if(argc == 4)
 		printBinary(KERDIM, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
@@ -334,17 +341,17 @@ int main(int argc, char* argv[]) {
 	uint32_t grid_size = ceil((MATDIM-KERDIM+1) * (MATDIM-KERDIM+1) / ((double) N));
 
 	// // Compute the different modes of convolution
-	// clock_gettime(CLOCK_MONOTONIC, &tstart);
-	// convStandard<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker, d_res_standard);
-	// clock_gettime(CLOCK_MONOTONIC, &tend);
-	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
-	// cout << "Standard convolution took " << elapsed << " seconds.\n";
-	//
-	// clock_gettime(CLOCK_MONOTONIC, &tstart);
-	// convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
-	// clock_gettime(CLOCK_MONOTONIC, &tend);
-	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
-	// cout << "Binary weights took " << elapsed << " nanoseconds.\n";
+	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	convStandard<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker, d_res_standard);
+	clock_gettime(CLOCK_MONOTONIC, &tend);
+	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	cout << "Standard convolution took " << elapsed << " seconds.\n";
+
+	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+	clock_gettime(CLOCK_MONOTONIC, &tend);
+	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
 
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
 	convBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, d_res_binWbinI);
@@ -354,24 +361,24 @@ int main(int argc, char* argv[]) {
 	cout << elapsed << "\n";
 
 	//Leon
-	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	/*clock_gettime(CLOCK_MONOTONIC, &tstart);
 	newConvBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, new_d_res_binWbinI);
 	clock_gettime(CLOCK_MONOTONIC, &tend);
 	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	cout << "Byte wise Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";
-	cout << elapsed << "\n";
+	cout << elapsed << "\n";*/
 
 	// Fetch the results from device
-	// cudaMemcpy(h_res_standard, d_res_standard, res_standard_size, cudaMemcpyDeviceToHost);
-	// cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_res_standard, d_res_standard, res_standard_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_res_binWbinI, d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(new_h_res_binWbinI, new_d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 
 	// TODO DEBUG: Print the results
-	// cout << "Standard convolution DOUBLExDOUBLE\n";
-	// printMatrix(MATDIM-KERDIM+1, h_res_standard);
-	// cout << "Binary weight convolution DOUBLExBITS\n";
-	// printMatrix(MATDIM-KERDIM+1, h_res_binW);
+	cout << "Standard convolution DOUBLExDOUBLE\n";
+	printMatrix(MATDIM-KERDIM+1, h_res_standard);
+	cout << "Binary weight convolution DOUBLExBITS\n";
+	printMatrix(MATDIM-KERDIM+1, h_res_binW);
 	if(argc == 4)
 	{
 		cout << "Binary weights and binary inputs BITSxBITS\n";
