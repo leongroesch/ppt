@@ -77,10 +77,27 @@ TEST(binIbinW_Test, 5Matrix3Kernel)
 
   convBinWBinIWrapper(1, 9, MATDIM, KERDIM, matrix, kernel, result, false);
 
-  unsigned char suspacted_result[9] = {4, 6, 2, 5, 5,  4, 6, 5, 5};
+  unsigned char suspected_result[9] = {4, 6, 2, 5, 5,  4, 6, 5, 5};
 
   for(int i = 0; i < 9; i++)
-      ASSERT_EQ(suspacted_result[i], result[i]);
+      ASSERT_EQ(suspected_result[i], result[i]);
+}
+
+TEST(binIbinW_Test, 11Matrix9Kernel)
+{
+  uint32_t MATDIM = 11;
+  uint32_t KERDIM = 9;
+  unsigned char matrix[16] = {0b10011010, 0b10101011, 0b00010110, 0b11010110, 0b11110100, 0b10111010, 0b11101010, 0b00101010,
+                              0b11100110, 0b10110001, 0b10101100, 0b10001011, 0b10001011, 0b10100011, 0b01010110, 0b11111111};
+  unsigned char kernel[11] = {0b00110101, 0b01101100, 0b11100100, 0b11100010, 0b10001101, 0b00110110, 0b10110111, 0b01110010, 0b01011000, 0b10101010, 0b11111111};
+  unsigned char result[9];
+
+  convBinWBinIWrapper(1, 9, MATDIM, KERDIM, matrix, kernel, result, false);
+
+  unsigned char suspected_result[9] = {41, 40, 36, 33, 43, 39, 45, 36, 44};
+
+  for(int i = 0; i < 9; i++)
+    ASSERT_EQ(suspected_result[i], result[i]);
 }
 
 TEST(binIBinW_Test, OldAsOracle)
