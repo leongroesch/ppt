@@ -100,21 +100,6 @@ void get_word(uint32_t* d_MATDIM, Word* matrix, Word* result, uint32_t lh_idx, u
   *result = lh_word | rh_word;
 }
 
-template <typename Word>
-__device__
-unsigned char popc(Word value)
-{
-	uint32_t word_length = sizeof(Word) * 8;
-  int count = 0;
-  for(int i = 0; i < word; i++)
-  {
-    if( ((value>>i) &0x01) == 1)
-      count++;
-  }
-
-  return count;
-}
-
 //Leong: Byte wise binary/binary convolution
 template<typename Word>
 __global__
@@ -151,7 +136,7 @@ void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, Word* matrix, Word*
 			//Only use the x left most bits from the last byte
 			if(byte == KERDIM/word_length)
 				result_word = ((0XFF<<(word_length-1-offset)) & result_word);
-			result[thread_id] += popc<Word>(result_word);
+			result[thread_id] += __popc(result_word);
 		}
 	}
 
