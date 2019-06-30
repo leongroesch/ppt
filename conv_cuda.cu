@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
 
 	//Leon
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
-	newConvBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, new_d_res_binWbinI);
+	newConvBinWBinI<unsigned char><<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, new_d_res_binWbinI);
 	clock_gettime(CLOCK_MONOTONIC, &tend);
 	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	cout << "Byte wise Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";

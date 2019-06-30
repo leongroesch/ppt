@@ -79,39 +79,58 @@ void convBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* mat, un
 	}
 }
 
+template<typename Word>
 __device__
-void get_byte(uint32_t* d_MATDIM, unsigned char* matrix, unsigned char* result, uint32_t lh_idx, uint32_t rh_idx)
+void get_word(uint32_t* d_MATDIM, Word* matrix, Word* result, uint32_t lh_idx, uint32_t rh_idx)
 {
-  unsigned char lh_byte = matrix[lh_idx/8];
-  unsigned char rh_byte = matrix[rh_idx/8];
-  if(rh_idx-lh_idx == 7)
+	uint32_t word_length = sizeof(Word) * 8;
+  Word lh_word = matrix[lh_idx/word_length];
+  Word rh_word = matrix[rh_idx/word_length];
+  if(rh_idx-lh_idx == (word_length-1) )
   {
-    lh_byte = lh_byte<<lh_idx%8;
-    rh_byte = rh_byte>>(8-lh_idx%8);
+    lh_word = lh_word<<lh_idx%word_length;
+    rh_word = rh_word>>(word_length-lh_idx%word_length);
   }
   else
   {
-    lh_byte = lh_byte<<lh_idx%8;
-    lh_byte &= 0xFF<<(7-(rh_idx-lh_idx));
-    rh_byte = (rh_byte>>(7-rh_idx%8))<<((lh_idx%8)-(rh_idx%8+1));
+    lh_word = lh_word<<lh_idx%word_length;
+    lh_word &= 0xFF<<((word_length-1)-(rh_idx-lh_idx));
+    rh_word = (rh_word>>((word_length-1)-rh_idx%word_length))<<((lh_idx%word_length)-(rh_idx%word_length+1));
   }
-  *result = lh_byte | rh_byte;
+  *result = lh_word | rh_word;
+}
+
+template <typename Word>
+__device__
+unsigned char popc(Word value)
+{
+	uint32_t word_length = sizeof(Word) * 8;
+  int count = 0;
+  for(int i = 0; i < word; i++)
+  {
+    if( ((value>>i) &0x01) == 1)
+      count++;
+  }
+
+  return count;
 }
 
 //Leong: Byte wise binary/binary convolution
+template<typename Word>
 __global__
-void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matrix, unsigned char* kernel, unsigned char* result){
+void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, Word* matrix, Word* kernel, unsigned char* result){
 	uint32_t KERDIM = d_KERDIM[0];
 	uint32_t MATDIM = d_MATDIM[0];
-	uint32_t threadID = blockIdx.x * blockDim.x + threadIdx.x;
-	result[threadID] = 0;
-	uint32_t midpoint_index = KERDIM/2 + (KERDIM/2) * MATDIM + (threadID / (MATDIM-KERDIM+1)) * MATDIM + threadID % (MATDIM-KERDIM+1);
-	unsigned char kernel_byte = 0;
-	unsigned char matrix_byte = 0;
-	unsigned char result_byte = 0;
+	uint32_t word_length = sizeof(Word) * 8;
+	uint32_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+	result[thread_id] = 0;
+	uint32_t midpoint_index = KERDIM/2 + (KERDIM/2) * MATDIM + (thread_id / (MATDIM-KERDIM+1)) * MATDIM + thread_id % (MATDIM-KERDIM+1);
+	Word kernel_word = 0;
+	Word matrix_word = 0;
+	Word result_word = 0;
 	int lh_matrix_idx = 0;
 	int lh_kernel_idx = 0;
-	unsigned int offset = 0;
+	uint32_t offset = 0;
 
 	//Iterate ofter the maks columns
 	for(int row = -(KERDIM/2); row <= (int)KERDIM/2  ; row++)
@@ -119,20 +138,20 @@ void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, unsigned char* matr
 		lh_matrix_idx = midpoint_index+(row*MATDIM) - KERDIM/2;
 		lh_kernel_idx = (row+KERDIM/2)*KERDIM;
 		//Iterate over the bytes in one collumn
-		for(unsigned int byte = 0; byte <= KERDIM/8; byte++)
+		for(unsigned int byte = 0; byte <= KERDIM/word_length; byte++)
 		{
-			if(byte == KERDIM/8)
-			 offset =	(KERDIM%8)-1;
+			if(byte == KERDIM/word_length)
+			 offset =	(KERDIM%word_length)-1;
 			else
-				offset = 7;
-		  get_byte(d_KERDIM, kernel, &kernel_byte, lh_kernel_idx+8*byte, lh_kernel_idx+8*byte+offset);
-			get_byte(d_MATDIM, matrix, &matrix_byte, lh_matrix_idx+8*byte, lh_matrix_idx+8*byte+offset);
+				offset = word_length-1;
+		  get_word<Word>(d_KERDIM, kernel, &kernel_word, lh_kernel_idx+word_length*byte, lh_kernel_idx+word_length*byte+offset);
+			get_word<Word>(d_MATDIM, matrix, &matrix_word, lh_matrix_idx+word_length*byte, lh_matrix_idx+word_length*byte+offset);
 			//XNOR
-			result_byte = ~(kernel_byte^matrix_byte);
+			result_word = ~(kernel_word^matrix_word);
 			//Only use the x left most bits from the last byte
-			if(byte == KERDIM/8)
-				result_byte = ((0XFF<<(7-offset)) & result_byte);
-			result[threadID] += __popc(result_byte);
+			if(byte == KERDIM/word_length)
+				result_word = ((0XFF<<(word_length-1-offset)) & result_word);
+			result[thread_id] += popc<Word>(result_word);
 		}
 	}
 
