@@ -116,11 +116,17 @@ int main(int argc, char* argv[]) {
 	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	// cout << "Standard convolution took " << elapsed << " seconds.\n";
 	//
-	// clock_gettime(CLOCK_MONOTONIC, &tstart);
-	// convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
-	// clock_gettime(CLOCK_MONOTONIC, &tend);
-	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
-	// cout << "Binary weights took " << elapsed << " nanoseconds.\n";
+	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	newConvBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+	clock_gettime(CLOCK_MONOTONIC, &tend);
+	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
+
+	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+	clock_gettime(CLOCK_MONOTONIC, &tend);
+	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
 
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
 	convBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, d_res_binWbinI);
@@ -139,7 +145,7 @@ int main(int argc, char* argv[]) {
 
 	// Fetch the results from device
 	// cudaMemcpy(h_res_standard, d_res_standard, res_standard_size, cudaMemcpyDeviceToHost);
-	// cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_res_binWbinI, d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(new_h_res_binWbinI, new_d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 
