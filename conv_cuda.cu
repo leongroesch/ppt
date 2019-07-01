@@ -45,6 +45,8 @@ int main(int argc, char* argv[]) {
 	double* 	h_res_standard = new double[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 	// Result of convolution with binary weights
 	double* 	h_res_binW = new double[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
+
+	double* 	new_h_res_binW = new double[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 	// Result of convolution with binary weights and binary inputs
 	unsigned char* 	h_res_binWbinI = new unsigned char[(MATDIM-KERDIM+1)*(MATDIM-KERDIM+1)];
 
@@ -60,7 +62,7 @@ int main(int argc, char* argv[]) {
 
 	// Pointers for allocation on device
 	uint32_t *d_MATDIM, *d_KERDIM;
-	double *d_mat, *d_ker, *d_res_standard, *d_res_binW;
+	double *d_mat, *d_ker, *d_res_standard, *d_res_binW, *new_d_res_binW;
 	unsigned char *d_mat_bin, *d_ker_bin, *d_res_binWbinI, *new_d_res_binWbinI;
 
 	// Allocate all matrices on device (cudaFree later!)
@@ -72,6 +74,7 @@ int main(int argc, char* argv[]) {
 	cudaMalloc((void**) &d_res_binW, res_binW_size);
 	cudaMalloc((void**) &d_res_binWbinI, res_binWbinI_size);
 
+	cudaMalloc((void**) &new_d_res_binW, res_binW_size);
 	cudaMalloc((void**) &new_d_res_binWbinI, res_binWbinI_size);
 
 	cudaMalloc((void**) &d_MATDIM, sizeof(uint32_t));
@@ -88,14 +91,14 @@ int main(int argc, char* argv[]) {
 	if(argc == 4)
 		printBinary(MATDIM, (uint32_t) ceil(MATDIM*MATDIM/8.0), h_mat_bin);
 
-    // TODO DEBUG: Print the double matrix.
-   // printMatrix(MATDIM, h_mat);
+  //TODO DEBUG: Print the double matrix.
+   printMatrix(MATDIM, h_mat);
 
 	initMat(KERDIM, h_ker);
 	// Convert the double matrix into binary
 	convertToBinary(KERDIM, h_ker, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
 	// TODO DEBUG: Print the double matrix.
-	// printMatrix(KERDIM, h_ker);
+	//printMatrix(KERDIM, h_ker);
 	// TODO DEBUG: Print the binary matrix.
 	if(argc == 4)
 		printBinary(KERDIM, (uint32_t) ceil(KERDIM*KERDIM/8.0), h_ker_bin);
@@ -115,27 +118,24 @@ int main(int argc, char* argv[]) {
 	// clock_gettime(CLOCK_MONOTONIC, &tend);
 	// elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	// cout << "Standard convolution took " << elapsed << " seconds.\n";
-	//
+
+	cout << "\n----------Binary weights----------\n";
+	//Run and measure time for newConvBinW
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
-	newConvBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
+	newConvBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, new_d_res_binW);
 	clock_gettime(CLOCK_MONOTONIC, &tend);
 	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
 
+	//Run and measure time for old convBinW
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
 	convBinW<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat, d_ker_bin, d_res_binW);
 	clock_gettime(CLOCK_MONOTONIC, &tend);
 	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
 	cout << "Binary weights took " << elapsed << " nanoseconds.\n";
 
-	clock_gettime(CLOCK_MONOTONIC, &tstart);
-	convBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, d_res_binWbinI);
-	clock_gettime(CLOCK_MONOTONIC, &tend);
-	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
-	cout << "Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";
-	cout << elapsed << "\n";
-
-	//Leon
+	cout << "\n----------Binary weights Binary Inputs----------\n";
+	//Run and measure time for newConvBinWBinI
 	clock_gettime(CLOCK_MONOTONIC, &tstart);
 	newConvBinWBinI<unsigned char><<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, new_d_res_binWbinI);
 	clock_gettime(CLOCK_MONOTONIC, &tend);
@@ -143,9 +143,18 @@ int main(int argc, char* argv[]) {
 	cout << "Byte wise Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";
 	cout << elapsed << "\n";
 
+	//Run and measure time for old convBinWBinI
+	clock_gettime(CLOCK_MONOTONIC, &tstart);
+	convBinWBinI<<<grid_size, N>>>(d_MATDIM, d_KERDIM, d_mat_bin, d_ker_bin, d_res_binWbinI);
+	clock_gettime(CLOCK_MONOTONIC, &tend);
+	elapsed = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) - ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+	cout << "Binary inputs and binary weights took " << elapsed << " nanoseconds.\n";
+	cout << elapsed << "\n";
+
 	// Fetch the results from device
 	// cudaMemcpy(h_res_standard, d_res_standard, res_standard_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_res_binW, d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(new_h_res_binW, new_d_res_binW, res_binW_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_res_binWbinI, d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 	cudaMemcpy(new_h_res_binWbinI, new_d_res_binWbinI, res_binWbinI_size, cudaMemcpyDeviceToHost);
 
@@ -153,7 +162,10 @@ int main(int argc, char* argv[]) {
 	// cout << "Standard convolution DOUBLExDOUBLE\n";
 	// printMatrix(MATDIM-KERDIM+1, h_res_standard);
 	// cout << "Binary weight convolution DOUBLExBITS\n";
-	// printMatrix(MATDIM-KERDIM+1, h_res_binW);
+	cout << "\n----------Reuslt for old binary Weights----------\n";
+	printMatrix(MATDIM-KERDIM+1, h_res_binW);
+	cout << "\n----------Reuslt for new binary Wieghts----------\n";
+	printMatrix(MATDIM-KERDIM+1, new_h_res_binW);
 	if(argc == 4)
 	{
 		cout << "Binary weights and binary inputs BITSxBITS\n";
@@ -183,6 +195,7 @@ int main(int argc, char* argv[]) {
 	cudaFree(d_ker_bin);
 	cudaFree(d_res_standard);
 	cudaFree(d_res_binW);
+	cudaFree(new_d_res_binW);
 	cudaFree(d_res_binWbinI);
 	cudaFree(new_d_res_binWbinI);
 	cudaFree(d_MATDIM);

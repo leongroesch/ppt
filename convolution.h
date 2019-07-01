@@ -57,8 +57,8 @@ void newConvBinW(uint32_t* d_MATDIM, uint32_t* d_KERDIM, double* mat, unsigned c
 		double sum = 0.0;
 		for (uint32_t i = 0; i < KERSIZE; i++) {
 			uint32_t currentPosMat = POSMAT + ((int)(i / KERDIM) * MATDIM + i % KERDIM);
-			uint32_t kerPosByte = (int)(i / 7);
-			uint32_t kerPosBit = 7 - i % 7;
+			uint32_t kerPosByte = (int)(i / 8);
+			uint32_t kerPosBit = 7 - i % 8;
 			if((unsigned char)((ker[kerPosByte] >> kerPosBit) & 0x1) == 1) {
 				sum += mat[currentPosMat];
 			} else {
