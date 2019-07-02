@@ -51,6 +51,28 @@ void printMatrix(uint32_t dim, double* mat) {
 	std::cout << "}\n";
 }
 
+void printMatrix(uint32_t dim, uint32_t* mat) {
+	std::cout << "dim: " << dim << "x" << dim << "\n{\n";
+	for (uint32_t i = 0; i < dim; i++) {
+		for (uint32_t j = 0; j < dim; j++) {
+			std::cout << mat[i*dim+j] << ", ";
+		}
+		std::cout << '\n';
+	}
+	std::cout << "}\n";
+}
+
+void printCharMatrix(uint32_t dim, unsigned char* mat){
+	std::cout << "dim: " << dim << "x" << dim << "\n{\n";
+	for (uint32_t i = 0; i < dim; i++) {
+		for (uint32_t j = 0; j < dim; j++) {
+			std::cout << (uint32_t) mat[i*dim+j] << ", ";
+		}
+		std::cout << '\n';
+	}
+	std::cout << "}\n";
+}
+
 void printBinary(uint32_t dim, uint32_t size_bin, unsigned char* mat) {
 	unsigned char rest;
 

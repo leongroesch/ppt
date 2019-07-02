@@ -52,11 +52,11 @@ void convBinWWrapper(uint32_t dimM, uint32_t dimK, double* mat, double* res, uns
 }
 
 template <typename Word>
-void convBinWBinIWrapper(uint32_t blocks, uint32_t threads, uint32_t MATDIM, uint32_t KERDIM, Word* matrix, Word* kernel, unsigned char* result)
+void convBinWBinIWrapper(uint32_t blocks, uint32_t threads, uint32_t MATDIM, uint32_t KERDIM, Word* matrix, Word* kernel, uint32_t* result)
 {
   double word_length = sizeof(Word) * 8.0;
   //Calculate Array size
-  uint32_t res_size = (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) * sizeof(unsigned char);
+  uint32_t res_size = (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) * sizeof(uint32_t);
   uint32_t mat_size = (uint32_t) ceil(MATDIM*MATDIM/word_length) * sizeof(Word);
 	uint32_t ker_size = (uint32_t) ceil(KERDIM*KERDIM/word_length) * sizeof(Word);
 
@@ -66,7 +66,7 @@ void convBinWBinIWrapper(uint32_t blocks, uint32_t threads, uint32_t MATDIM, uin
   cudaMalloc((void**) &d_KERDIM, sizeof(uint32_t));
 
   Word *d_mat, *d_ker;
-  unsigned char *d_res;
+  uint32_t *d_res;
   cudaMalloc((void**) &d_mat, mat_size);
 	cudaMalloc((void**) &d_ker, ker_size);
   cudaMalloc((void**) &d_res, res_size);
@@ -134,7 +134,7 @@ TEST(binIbinW, M1K1)
   uint32_t KERDIM = 1;
   unsigned char matrix[1] = {0b10000000};
   unsigned char kernel[1] = {0b10000000};
-  unsigned char result[1];
+  uint32_t result[1];
 
   convBinWBinIWrapper<unsigned char>(1, 1, MATDIM, KERDIM, matrix, kernel, result);
 
@@ -154,11 +154,11 @@ TEST(binIbinW, M5K3)
     */
   unsigned char matrix[4] = { 0b11010100, 0b01001101, 0b11110000, 0b00000000 };
   unsigned char kernel[2] = {0b10101100, 0b10000000};
-  unsigned char result[9];
+  uint32_t result[9];
 
   convBinWBinIWrapper<unsigned char>(1, 9, MATDIM, KERDIM, matrix, kernel, result);
 
-  unsigned char suspected_result[9] = {4, 6, 2, 5, 5,  4, 6, 5, 5};
+  uint32_t suspected_result[9] = {4, 6, 2, 5, 5,  4, 6, 5, 5};
 
   for(int i = 0; i < 9; i++)
       ASSERT_EQ(suspected_result[i], result[i]);
@@ -171,11 +171,11 @@ TEST(binIbinW, M11K9)
   unsigned char matrix[16] = {0b10011010, 0b10101011, 0b00010110, 0b11010110, 0b11110100, 0b10111010, 0b11101010, 0b00101010,
                               0b11100110, 0b10110001, 0b10101100, 0b10001011, 0b10001011, 0b10100011, 0b01010110, 0b11111111};
   unsigned char kernel[11] = {0b00110101, 0b01101100, 0b11100100, 0b11100010, 0b10001101, 0b00110110, 0b10110111, 0b01110010, 0b01011000, 0b10101010, 0b11111111};
-  unsigned char result[9];
+  uint32_t result[9];
 
   convBinWBinIWrapper<unsigned char>(1, 9, MATDIM, KERDIM, matrix, kernel, result);
 
-  unsigned char suspected_result[9] = {41, 40, 36, 33, 43, 39, 45, 36, 44};
+  uint32_t suspected_result[9] = {41, 40, 36, 33, 43, 39, 45, 36, 44};
   for(int i = 0; i < 9; i++)
     ASSERT_EQ(suspected_result[i], result[i]);
 }
@@ -186,7 +186,7 @@ TEST(binIbinW_WordLength32, M3K3)
   uint32_t KERDIM = 3;
   uint32_t matrix[1] = {0b10111101011111111111111111111111};
   uint32_t kernel[1] = {0b10111101011111111111111111111111};
-  unsigned char result[1];
+  uint32_t result[1];
 
   convBinWBinIWrapper<uint32_t>(1, 4, MATDIM, KERDIM, matrix, kernel, result);
 
@@ -199,11 +199,11 @@ TEST(binIbinW_WordLength32, M6K5)
   uint32_t KERDIM = 5;
   uint32_t matrix[2] = {0b10111101000100111010110101001011, 0b10000000000000000000000000000000}; //;
   uint32_t kernel[1] = {0b01010111100110000111101100000000};
-  unsigned char result[4];
+  uint32_t result[4];
 
   convBinWBinIWrapper<uint32_t>(1, 4, MATDIM, KERDIM, matrix, kernel, result);
 
-  unsigned char suspected_result[4] = {8, 15, 13, 13};
+  uint32_t suspected_result[4] = {8, 15, 13, 13};
   for(int i = 0; i < 4; i++)
     ASSERT_EQ(suspected_result[i], result[i]);
 }
@@ -228,7 +228,7 @@ TEST(binIbinW, OldAsOracle)
 
     unsigned char* bin_matrix = new unsigned char[ (uint32_t)ceil(MATDIM*MATDIM/8.0) ];
     unsigned char* bin_kernel = new unsigned char[ (uint32_t)ceil(KERDIM*KERDIM/8.0) ];
-    unsigned char* result = new unsigned char[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
+    uint32_t* result = new uint32_t[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
     unsigned char* suspected_result = new unsigned char[ (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1) ];
 
     convertToBinary(MATDIM, double_matrix, (uint32_t)ceil(MATDIM*MATDIM/8.0), bin_matrix);
@@ -241,7 +241,7 @@ TEST(binIbinW, OldAsOracle)
     convBinWBinIWrapper<unsigned char>(grid_size, N, MATDIM, KERDIM, bin_matrix, bin_kernel, result);
 
     for(int i=0; i < (MATDIM-KERDIM+1)*(MATDIM-KERDIM+1); i++)
-      ASSERT_EQ(suspected_result[i], result[i]);
+      ASSERT_EQ(suspected_result[i], (unsigned char)result[i]);
   }
 }
 

@@ -127,7 +127,7 @@ void get_word(uint32_t* d_MATDIM, Word* matrix, Word* result, uint32_t lh_idx, u
 //Leong: Byte wise binary/binary convolution
 template<typename Word>
 __global__
-void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, Word* matrix, Word* kernel, unsigned char* result){
+void newConvBinWBinI(uint32_t* d_MATDIM, uint32_t* d_KERDIM, Word* matrix, Word* kernel, uint32_t* result){
 	uint32_t KERDIM = d_KERDIM[0];
 	uint32_t MATDIM = d_MATDIM[0];
 	uint32_t word_length = sizeof(Word) * 8;
